@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="hi" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>ChatWave — Login</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="style.css" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💬</text></svg>" />
+<script>
+  // theme flash rokne ke liye
+  document.documentElement.dataset.theme = localStorage.getItem("cw-theme") || "dark";
+</script>
+</head>
+<body class="auth-body">
+
+  <div class="blob b1"></div>
+  <div class="blob b2"></div>
+  <div class="blob b3"></div>
+  <div class="grid-overlay"></div>
+
+  <button class="theme-fab" id="themeBtn" title="Theme badlo">🌙</button>
+
+  <main class="auth-wrap">
+    <section class="auth-card glass">
+
+      <div class="brand">
+        <div class="brand-logo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+          </svg>
+        </div>
+        <h1>ChatWave</h1>
+        <p class="brand-sub">Baatein karo, call karo — bilkul aasaan.</p>
+      </div>
+
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="login" role="tab" type="button">Login</button>
+        <button class="tab" data-tab="signup" role="tab" type="button">Sign Up</button>
+        <span class="tab-ink" id="tabInk"></span>
+      </div>
+
+      <form id="authForm" class="auth-form" autocomplete="on">
+        <div class="field" id="nameField" hidden>
+          <label for="name">Naam</label>
+          <div class="input-wrap">
+            <span class="ico">👤</span>
+            <input id="name" type="text" placeholder="Aapka poora naam" autocomplete="name" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="email">Email</label>
+          <div class="input-wrap">
+            <span class="ico">✉️</span>
+            <input id="email" type="email" placeholder="aap@example.com" required autocomplete="email" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="password">Password</label>
+          <div class="input-wrap">
+            <span class="ico">🔒</span>
+            <input id="password" type="password" placeholder="Kam se kam 6 characters" required autocomplete="current-password" />
+            <button type="button" class="eye" id="eyeBtn" aria-label="Password dikhao">👁️</button>
+          </div>
+        </div>
+
+        <button type="button" class="link-btn" id="forgotBtn">Password bhool gaye?</button>
+
+        <button class="btn primary lg full" id="submitBtn" type="submit">
+          <span class="btn-label">Login</span>
+          <span class="spinner" hidden></span>
+        </button>
+      </form>
+
+      <div class="divider"><span>ya</span></div>
+
+      <button class="btn ghost full" id="googleBtn" type="button">
+        <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+          <path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.6-.4-3.9z"/>
+          <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/>
+          <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.3 0-9.7-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/>
+          <path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.1-4.1 5.6l6.2 5.2C36.9 39.2 44 34 44 24c0-1.3-.1-2.6-.4-3.9z"/>
+        </svg>
+        Google se continue karo
+      </button>
+
+      <p class="fineprint">Aage badhne par aap hamari Terms &amp; Privacy se sehmat hote hain.</p>
+    </section>
+  </main>
+
+  <script type="module">
+    import { auth, db, toast } from "./firebase.js";
+    import {
+      createUserWithEmailAndPassword, signInWithEmailAndPassword,
+      GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail,
+      updateProfile, onAuthStateChanged
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import { doc, setDoc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    /* ---------- Theme ---------- */
+    const themeBtn = document.getElementById("themeBtn");
+    const cur = document.documentElement.dataset.theme;
+    themeBtn.textContent = cur === "dark" ? "🌙" : "☀️";
+    themeBtn.onclick = () => {
+      const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+      document.documentElement.dataset.theme = next;
+      localStorage.setItem("cw-theme", next);
+      themeBtn.textContent = next === "dark" ? "🌙" : "☀️";
+    };
+
+    /* ---------- Tabs ---------- */
+    const tabs = [...document.querySelectorAll(".tab")];
+    const tabInk = document.getElementById("tabInk");
+    const nameField = document.getElementById("nameField");
+    const submitBtn = document.getElementById("submitBtn");
+    const btnLabel = submitBtn.querySelector(".btn-label");
+    const passwordInput = document.getElementById("password");
+    let mode = "login";
+
+    function moveInk() {
+      const active = document.querySelector(".tab.active");
+      if (!active) return;
+      tabInk.style.width = active.offsetWidth + "px";
+      tabInk.style.transform = `translateX(${active.offsetLeft}px)`;
+    }
+    function setMode(next) {
+      mode = next;
+      tabs.forEach(t => t.classList.toggle("active", t.dataset.tab === next));
+      nameField.hidden = next === "login";
+      btnLabel.textContent = next === "login" ? "Login" : "Account banao";
+      passwordInput.autocomplete = next === "login" ? "current-password" : "new-password";
+      requestAnimationFrame(moveInk);
+    }
+    tabs.forEach(t => t.onclick = () => setMode(t.dataset.tab));
+    window.addEventListener("load", moveInk);
+    window.addEventListener("resize", moveInk);
+    setMode("login");
+
+    /* ---------- Password eye ---------- */
+    document.getElementById("eyeBtn").onclick = (e) => {
+      const isPw = passwordInput.type === "password";
+      passwordInput.type = isPw ? "text" : "password";
+      e.currentTarget.textContent = isPw ? "🙈" : "👁️";
+    };
+
+    /* ---------- Loading ---------- */
+    function setLoading(on) {
+      submitBtn.disabled = on;
+      submitBtn.querySelector(".spinner").hidden = !on;
+      btnLabel.style.opacity = on ? ".4" : "1";
+    }
+
+    /* ---------- User doc ---------- */
+    async function ensureUserDoc(user, name) {
+      const ref = doc(db, "users", user.uid);
+      const snap = await getDoc(ref);
+      if (!snap.exists()) {
+        await setDoc(ref, {
+          uid: user.uid,
+          name: name || user.displayName || user.email.split("@")[0],
+          email: user.email,
+          photo: user.photoURL || "",
+          online: true,
+          lastSeen: serverTimestamp(),
+          createdAt: serverTimestamp()
+        });
+      } else {
+        await setDoc(ref, {
+          online: true,
+          lastSeen: serverTimestamp(),
+          photo: user.photoURL || snap.data().photo || ""
+        }, { merge: true });
+      }
+    }
+
+    /* ---------- Form submit ---------- */
+    document.getElementById("authForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const name = document.getElementById("name").value.trim();
+      const email = document.getElementById("email").value.trim();
+      const password = passwordInput.value;
+
+      if (!email || !password) return toast("Email aur password dono bharo", "error");
+      if (password.length < 6) return toast("Password kam se kam 6 characters ka ho", "error");
+      if (mode === "signup" && name.length < 2) return toast("Apna naam likho", "error");
+
+      setLoading(true);
+      try {
+        if (mode === "signup") {
+          const cred = await createUserWithEmailAndPassword(auth, email, password);
+          if (name) await updateProfile(cred.user, { displayName: name });
+          await ensureUserDoc(cred.user, name);
+          toast("Account ban gaya! 🎉", "success");
+        } else {
+          const cred = await signInWithEmailAndPassword(auth, email, password);
+          await ensureUserDoc(cred.user);
+          toast("Wapas swagat! 👋", "success");
+        }
+        setTimeout(() => location.replace("dashboard.html"), 500);
+      } catch (err) {
+        console.error(err);
+        toast(prettyError(err), "error");
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    /* ---------- Google ---------- */
+    document.getElementById("googleBtn").onclick = async () => {
+      try {
+        const cred = await signInWithPopup(auth, new GoogleAuthProvider());
+        await ensureUserDoc(cred.user);
+        toast("Login successful! 🎉", "success");
+        setTimeout(() => location.replace("dashboard.html"), 400);
+      } catch (err) {
+        console.error(err);
+        toast(prettyError(err), "error");
+      }
+    };
+
+    /* ---------- Forgot ---------- */
+    document.getElementById("forgotBtn").onclick = async () => {
+      const email = document.getElementById("email").value.trim();
+      if (!email) return toast("Pehle apna email likho", "error");
+      try {
+        await sendPasswordResetEmail(auth, email);
+        toast("Reset link email par bhej diya 📧", "success");
+      } catch (err) { toast(prettyError(err), "error"); }
+    };
+
+    /* ---------- Redirect ---------- */
+    onAuthStateChanged(auth, (user) => { if (user) location.replace("dashboard.html"); });
+
+    function prettyError(err) {
+      const map = {
+        "auth/invalid-email": "Email sahi nahi hai",
+        "auth/user-not-found": "Is email se koi account nahi mila",
+        "auth/wrong-password": "Password galat hai",
+        "auth/invalid-credential": "Email ya password galat hai",
+        "auth/email-already-in-use": "Ye email pehle se registered hai",
+        "auth/weak-password": "Password bahut kamzor hai",
+        "auth/popup-closed-by-user": "Popup band kar diya gaya",
+        "auth/network-request-failed": "Internet connection check karo"
+      };
+      return map[err.code] || "Kuch galat ho gaya, dobara try karo";
+    }
+
+    requestAnimationFrame(() => document.querySelector(".auth-card").classList.add("in"));
+  </script>
+</body>
+</html>

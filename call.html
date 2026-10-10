@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="hi" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Call — ChatWave</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="style.css" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📞</text></svg>" />
+<script>document.documentElement.dataset.theme = localStorage.getItem("cw-theme") || "dark";</script>
+</head>
+<body class="call-body">
+
+  <!-- Remote video (fullscreen) -->
+  <video id="remoteVideo" class="remote-video" autoplay playsinline></video>
+
+  <!-- Local PiP -->
+  <div class="local-pip" id="localPip" hidden>
+    <video id="localVideo" autoplay playsinline muted></video>
+  </div>
+
+  <!-- Audio-only visual -->
+  <div class="audio-stage" id="audioStage" hidden>
+    <div class="pulse-ring"><span></span><span></span><span></span></div>
+    <div class="call-avatar" id="callAvatar">?</div>
+  </div>
+
+  <!-- Top info -->
+  <header class="call-top">
+    <div class="call-who">
+      <div class="call-name" id="callName">Connecting…</div>
+      <div class="call-status" id="callStatus">Ringing…</div>
+    </div>
+    <button class="icon-btn glassy" id="minimizeBtn" title="Chhupao" hidden>⌄</button>
+  </header>
+
+  <!-- Controls -->
+  <footer class="call-controls">
+    <button class="cbtn" id="muteBtn" title="Mute">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+        <path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/>
+      </svg>
+    </button>
+
+    <button class="cbtn" id="speakerBtn" title="Speaker">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M11 5L6 9H2v6h4l5 4V5z"/>
+        <path d="M15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14"/>
+      </svg>
+    </button>
+
+    <button class="cbtn danger" id="hangupBtn" title="Call kaato">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/>
+        <path d="M1 1l22 22"/>
+      </svg>
+    </button>
+
+    <button class="cbtn" id="camBtn" title="Camera">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+      </svg>
+    </button>
+
+    <button class="cbtn" id="switchBtn" title="Camera badlo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+        <path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+      </svg>
+    </button>
+  </footer>
+
+  <!-- Ended overlay -->
+  <div class="call-ended" id="callEnded" hidden>
+    <div class="ended-card glass">
+      <div class="ended-ico">📴</div>
+      <h3 id="endedTitle">Call khatam</h3>
+      <p id="endedSub">—</p>
+      <button class="btn primary lg full" id="endedBack">Wapas jao</button>
+    </div>
+  </div>
+
+  <div class="toast-wrap" id="toastWrap"></div>
+
+  <script type="module">
+    import { auth, db, toast, initials, avatarColor, ICE_SERVERS } from "./firebase.js";
+    import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import {
+      doc, getDoc, onSnapshot, updateDoc, addDoc, collection,
+      serverTimestamp, setDoc
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    const params = new URLSearchParams(location.search);
+    const callId = params.get("callId");
+    const role = params.get("role") || "caller";   // caller | callee
+    const callType = params.get("type") || "audio"; // audio | video
+
+    if (!callId) location.replace("dashboard.html");
+
+    let me = null;
+    let pc = null;
+    let localStream = null;
+    let remoteStream = null;
+    let callRef = null;
+    let unsubCall = null;
+    let unsubRemoteCand = null;
+    let timerInt = null;
+    let startedAt = 0;
+    let ended = false;
+
+    const remoteVideo = document.getElementById("remoteVideo");
+    const localVideo = document.getElementById("localVideo");
+    const localPip = document.getElementById("localPip");
+    const audioStage = document.getElementById("audioStage");
+    const callNameEl = document.getElementById("callName");
+    const callStatusEl = document.getElementById("callStatus");
+    const callAvatar = document.getElementById("callAvatar");
+    const camBtn = document.getElementById("camBtn");
+    const muteBtn = document.getElementById("muteBtn");
+    const switchBtn = document.getElementById("switchBtn");
+
+    let muted = false;
+    let camOff = false;
+    let facing = "user";
+
+    /* ---------- Auth ---------- */
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) { location.replace("index.html"); return; }
+      me = user;
+      callRef = doc(db, "calls", callId);
+
+      const snap = await getDoc(callRef);
+      if (!snap.exists()) {
+        toast("Call nahi mili", "error");
+        setTimeout(() => location.href = "dashboard.html", 900);
+        return;
+      }
+      const data = snap.data();
+
+      const peerName = role === "caller" ? data.toName : data.fromName;
+      const peerUid = role === "caller" ? data.to : data.from;
+      callNameEl.textContent = peerName || "User";
+      callAvatar.textContent = initials(peerName || "U");
+      callAvatar.style.background = avatarColor(peerUid || "x");
+
+      if (callType === "audio") {
+        audioStage.hidden = false;
+        localPip.hidden = true;
+      } else {
+        localPip.hidden = false;
+      }
+      camBtn.style.display = callType === "video" ? "" : "none";
+      switchBtn.style.display = callType === "video" ? "" : "none";
+
+      try {
+        await setupMedia();
+        await setupPeer();
+        if (role === "caller") {
+          await createOffer();
+          callStatusEl.textContent = "Ringing…";
+        } else {
+          callStatusEl.textContent = "Connecting…";
+        }
+        listenCall();
+      } catch (e) {
+        console.error(e);
+        toast(errMsg(e), "error");
+        endCall("error");
+      }
+    });
+
+    /* ---------- Media ---------- */
+    async function setupMedia() {
+      const constraints = {
+        audio: { echoCancellation: true, noiseSuppression: true },
+        video: callType === "video"
+          ? { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } }
+          : false
+      };
+      localStream = await navigator.mediaDevices.getUserMedia(constraints);
+      if (callType === "video") {
+        localVideo.srcObject = localStream;
+      }
+    }
+
+    /* ---------- Peer connection ---------- */
+    async function setupPeer() {
+      pc = new RTCPeerConnection(ICE_SERVERS);
+
+      localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+
+      remoteStream = new MediaStream();
+      remoteVideo.srcObject = remoteStream;
+
+      pc.ontrack = (e) => {
+        e.streams[0].getTracks().forEach(t => {
+          if (!remoteStream.getTracks().includes(t)) remoteStream.addTrack(t);
+        });
+        if (!startedAt) startTimer();
+        callStatusEl.textContent = "Connected";
+        callStatusEl.classList.add("connected");
+      };
+
+      pc.oniceconnectionstatechange = () => {
+        const st = pc.iceConnectionState;
+        if (st === "disconnected" || st === "failed") {
+          callStatusEl.textContent = "Connection kamzor…";
+        } else if (st === "connected" || st === "completed") {
+          callStatusEl.textContent = "Connected";
+          callStatusEl.classList.add("connected");
+          if (!startedAt) startTimer();
+        }
+      };
+
+      // ICE candidates → apni collection me likho
+      const myCandCol = collection(db, "calls", callId, role === "caller" ? "callerCandidates" : "calleeCandidates");
+      const peerCandCol = collection(db, "calls", callId, role === "caller" ? "calleeCandidates" : "callerCandidates");
+
+      pc.onicecandidate = (e) => {
+        if (e.candidate) addDoc(myCandCol, e.candidate.toJSON()).catch(() => {});
+      };
+
+      unsubRemoteCand = onSnapshot(peerCandCol, (snap) => {
+        snap.docChanges().forEach(ch => {
+          if (ch.type === "added") {
+            pc.addIceCandidate(new RTCIceCandidate(ch.doc.data())).catch(() => {});
+          }
+        });
+      });
+    }
+
+    /* ---------- Caller: create offer ---------- */
+    async function createOffer() {
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      await updateDoc(callRef, {
+        offer: { type: offer.type, sdp: offer.sdp }
+      });
+    }
+
+    /* ---------- Listen to call doc ---------- */
+    function listenCall() {
+      unsubCall = onSnapshot(callRef, async (snap) => {
+        if (!snap.exists() || ended) return;
+        const d = snap.data();
+
+        // Callee side: offer aaya → answer banao
+        if (role === "callee" && d.offer && !pc.currentRemoteDescription) {
+          try {
+            await pc.setRemoteDescription(new RTCSessionDescription(d.offer));
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            await updateDoc(callRef, {
+              answer: { type: answer.type, sdp: answer.sdp },
+              status: "accepted"
+            });
+          } catch (e) {
+            console.error("answer error", e);
+          }
+        }
+
+        // Caller side: answer aaya
+        if (role === "caller" && d.answer && !pc.currentRemoteDescription) {
+          try {
+            await pc.setRemoteDescription(new RTCSessionDescription(d.answer));
+          } catch (e) { console.error("setRemote answer", e); }
+        }
+
+        // Status changes
+        if (d.status === "declined") {
+          endCall("declined");
+        } else if (d.status === "ended") {
+          endCall("ended");
+        }
+      });
+    }
+
+    /* ---------- Timer ---------- */
+    function startTimer() {
+      startedAt = Date.now();
+      clearInterval(timerInt);
+      timerInt = setInterval(() => {
+        const s = Math.floor((Date.now() - startedAt) / 1000);
+        callStatusEl.textContent = fmtDur(s);
+      }, 1000);
+    }
+    function fmtDur(sec) {
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+    }
+
+    /* ---------- Controls ---------- */
+    muteBtn.onclick = () => {
+      muted = !muted;
+      localStream.getAudioTracks().forEach(t => t.enabled = !muted);
+      muteBtn.classList.toggle("active", muted);
+      toast(muted ? "Mic mute 🔇" : "Mic on 🎤", "info");
+    };
+
+    camBtn.onclick = () => {
+      camOff = !camOff;
+      localStream.getVideoTracks().forEach(t => t.enabled = !camOff);
+      camBtn.classList.toggle("active", camOff);
+      toast(camOff ? "Camera off 📷" : "Camera on 📹", "info");
+    };
+
+    switchBtn.onclick = async () => {
+      if (callType !== "video") return;
+      facing = facing === "user" ? "environment" : "user";
+      try {
+        const newStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: facing }, audio: false
+        });
+        const newTrack = newStream.getVideoTracks()[0];
+        const sender = pc.getSenders().find(s => s.track && s.track.kind === "video");
+        if (sender) await sender.replaceTrack(newTrack);
+        localStream.getVideoTracks().forEach(t => t.stop());
+        localStream.removeTrack(localStream.getVideoTracks()[0]);
+        localStream.addTrack(newTrack);
+        localVideo.srcObject = localStream;
+      } catch (e) {
+        toast("Camera switch nahi hua", "error");
+      }
+    };
+
+    const speakerBtn = document.getElementById("speakerBtn");
+    speakerBtn.onclick = () => {
+      speakerBtn.classList.toggle("active");
+      toast(speakerBtn.classList.contains("active") ? "Speaker on 🔊" : "Speaker off 🔈", "info");
+    };
+
+    document.getElementById("hangupBtn").onclick = () => endCall("hangup");
+    document.getElementById("minimizeBtn").onclick = () => history.back();
+    document.getElementById("endedBack").onclick = () => location.href = "dashboard.html";
+
+    /* ---------- End ---------- */
+    async function endCall(reason) {
+      if (ended) return;
+      ended = true;
+
+      clearInterval(timerInt);
+
+      try {
+        const snap = await getDoc(callRef);
+        if (snap.exists() && snap.data().status !== "ended") {
+          const patch = { status: reason === "declined" ? "declined" : "ended", endedAt: serverTimestamp() };
+          if (reason === "declined") patch.status = "declined";
+          await updateDoc(callRef, patch);
+        }
+      } catch (e) { /* ignore */ }
+
+      if (unsubCall) unsubCall();
+      if (unsubRemoteCand) unsubRemoteCand();
+
+      try { pc && pc.close(); } catch (e) {}
+      localStream && localStream.getTracks().forEach(t => t.stop());
+
+      const dur = startedAt ? Math.floor((Date.now() - startedAt) / 1000) : 0;
+      document.getElementById("callEnded").hidden = false;
+      document.getElementById("endedTitle").textContent =
+        reason === "declined" ? "Call decline hui" :
+        reason === "error" ? "Call fail ho gayi" : "Call khatam";
+      document.getElementById("endedSub").textContent =
+        dur > 0 ? `Duration: ${fmtDur(dur)}` : "Koi baat nahi, dobara try karo";
+    }
+
+    window.addEventListener("beforeunload", () => {
+      if (!ended && callRef) {
+        updateDoc(callRef, { status: "ended", endedAt: serverTimestamp() }).catch(() => {});
+      }
+    });
+
+    function errMsg(e) {
+      if (e.name === "NotAllowedError") return "Camera/Mic ki permission chahiye";
+      if (e.name === "NotFoundError") return "Camera ya Mic nahi mila";
+      if (e.name === "NotReadableError") return "Camera/Mic kisi aur app me busy hai";
+      return "Call shuru nahi ho payi";
+    }
+  </script>
+</body>
+</html>
